@@ -30,16 +30,39 @@ import java.util.Collection;
 
 public class CustomInterceptorRegistry extends DefaultInterceptorRegistry
 {
-    public Collection<AfterPersistInterceptor> getAfterPersistInterceptors(final String type)
+    /* The superclass cannot be GCed until this class is unloaded so keeping here
+     * a hard reference to the 'findInterceptors' function does not affect ability
+     * to unload the superclass.
+     */
+    private static Method findInterceptorsMethod;
+    
+    static
+    {
+        try {
+            findInterceptorsMethod = CustomInterceptorRegistry.class.getSuperclass().
+                    getDeclaredMethod("findInterceptors", String.class, Class.class);
+            findInterceptorsMethod.setAccessible(true);
+        }
+        catch (NoSuchMethodException ex) {
+            throw new ExceptionInInitializerError(ex);
+        }
+        catch (SecurityException ex) {
+            throw new ExceptionInInitializerError(ex);
+        }
+    }
+    
+    @SuppressWarnings("unchecked")
+    public Collection<AfterPersistInterceptor<?>> getAfterPersistInterceptors(final String type)
     {
         assertLoaded();
         try {
-            final Method m = CustomInterceptorRegistry.class.getSuperclass().getDeclaredMethod(
-                    "findInterceptors", String.class, Class.class);
-            m.setAccessible(true);
-            return (Collection) m.invoke(this, type, AfterPersistInterceptor.class);
+            return (Collection<AfterPersistInterceptor<?>>) findInterceptorsMethod.invoke(
+                    this, type, AfterPersistInterceptor.class);
         }
-        catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException ex) {
+        catch (IllegalAccessException ex) {
+            throw new RuntimeException(ex);
+        }
+        catch (InvocationTargetException ex) {
             throw new RuntimeException(ex);
         }
     }
